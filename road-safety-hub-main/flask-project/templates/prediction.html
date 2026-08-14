@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction — Accident Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">
+            {% if category == 'success' %}✓{% elif category == 'error' %}✕{% else %}⚠{% endif %}
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+    <div class="app-layout">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">🚗 AccidentIQ</div>
+                <div class="sidebar-logo-sub">Analytics Platform</div>
+            </div>
+            <div class="sidebar-nav">
+                <a href="{{ url_for('dashboard') }}" class="nav-link">
+                    <span class="nav-icon">📊</span> Dashboard
+                </a>
+                <a href="{{ url_for('dataset') }}" class="nav-link">
+                    <span class="nav-icon">📁</span> Dataset
+                </a>
+                <a href="{{ url_for('prediction') }}" class="nav-link active">
+                    <span class="nav-icon">🔮</span> Prediction
+                </a>
+                <a href="{{ url_for('about') }}" class="nav-link">
+                    <span class="nav-icon">ℹ️</span> About
+                </a>
+            </div>
+            <div class="sidebar-footer">
+                <a href="{{ url_for('logout') }}" class="nav-link" style="color:var(--accent-red);">
+                    <span class="nav-icon">🚪</span> Logout
+                </a>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">Prediction & Risk Analysis</h1>
+                <p class="page-desc">Predict accident severity and assess risk using ML and physics-based models</p>
+            </div>
+
+            <div class="prediction-grid">
+                <!-- Input Form -->
+                <div class="card animate-fade-in-up">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">Accident Parameters</div>
+                            <div class="card-subtitle">Enter conditions to analyze</div>
+                        </div>
+                    </div>
+                    <form method="POST" action="{{ url_for('prediction') }}">
+                        <div class="input-grid">
+                            <div class="form-group">
+                                <label>vehicle_type (Bike/Car/Bus/Truck)</label>
+                                <select name="vehicle_type" id="vehicle_type" class="form-input" required>
+                                    {% for v in ['bike','car','bus','truck'] %}
+                                    <option value="{{ v }}" {% if result and result.inputs.vehicle_type == v %}selected{% endif %}>{{ v|capitalize }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>weather_condition (Rainy/Foggy/Clear)</label>
+                                <select name="weather_condition" class="form-input" required>
+                                    {% for w in ['rainy','foggy','clear'] %}
+                                    <option value="{{ w }}" {% if result and result.inputs.weather_condition == w %}selected{% endif %}>{{ w|capitalize }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>road_condition (Dry/Wet/Damaged)</label>
+                                <select name="road_condition" class="form-input" required>
+                                    {% for r in ['dry','wet','damaged'] %}
+                                    <option value="{{ r }}" {% if result and result.inputs.road_condition == r %}selected{% endif %}>{{ r|capitalize }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>time_of_day (Morning/Afternoon/Evening/Night)</label>
+                                <select name="time_of_day" class="form-input" required>
+                                    {% for t in ['morning','afternoon','evening','night'] %}
+                                    <option value="{{ t }}" {% if result and result.inputs.time_of_day == t %}selected{% endif %}>{{ t|capitalize }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>speed_kmph</label>
+                                <input type="number" name="speed_kmph" class="form-input" value="{{ result.inputs.speed_kmph if result else '60' }}" min="0" max="300" step="0.1" required>
+                            </div>
+                            <div class="form-group">
+                                <label>helmet_used (Yes/No)</label>
+                                <select name="helmet_used" id="helmet_used" class="form-input">
+                                    <option value="yes" {% if result and result.inputs.helmet_used == 'yes' %}selected{% endif %}>Yes</option>
+                                    <option value="no" {% if not result or result.inputs.helmet_used == 'no' %}selected{% endif %}>No</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>seatbelt_used (Yes/No)</label>
+                                <select name="seatbelt_used" id="seatbelt_used" class="form-input">
+                                    <option value="yes" {% if result and result.inputs.seatbelt_used == 'yes' %}selected{% endif %}>Yes</option>
+                                    <option value="no" {% if not result or result.inputs.seatbelt_used == 'no' %}selected{% endif %}>No</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>alcohol_involved (Yes/No)</label>
+                                <select name="alcohol_involved" class="form-input" required>
+                                    <option value="yes" {% if result and result.inputs.alcohol_involved == 'yes' %}selected{% endif %}>Yes</option>
+                                    <option value="no" {% if not result or result.inputs.alcohol_involved == 'no' %}selected{% endif %}>No</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>mobile_usage (Yes/No)</label>
+                                <select name="mobile_usage" class="form-input" required>
+                                    <option value="yes" {% if result and result.inputs.mobile_usage == 'yes' %}selected{% endif %}>Yes</option>
+                                    <option value="no" {% if not result or result.inputs.mobile_usage == 'no' %}selected{% endif %}>No</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>driver_license (Valid/Invalid)</label>
+                                <select name="driver_license" class="form-input" required>
+                                    <option value="valid" {% if not result or result.inputs.driver_license == 'valid' %}selected{% endif %}>Valid</option>
+                                    <option value="invalid" {% if result and result.inputs.driver_license == 'invalid' %}selected{% endif %}>Invalid</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="margin-top:20px; width: 100%; font-weight: 700; letter-spacing: 0.5px;">🔍 RUN SEVERITY PREDICTION</button>
+                    </form>
+                </div>
+
+                <!-- Results -->
+                <div class="results-column">
+                    {% if result %}
+                    <!-- ML Prediction -->
+                    <div class="card result-section animate-fade-in-up delay-1" style="margin-bottom:24px;">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">XGBoost ML Prediction</div>
+                                <div class="card-subtitle">Predicted severity with model confidence</div>
+                            </div>
+                        </div>
+                        <div style="text-align:center; margin-bottom:24px;">
+                            <div class="severity-badge {{ result.prediction|lower }}">
+                                {% if result.prediction == 'Minor' %}🟢
+                                {% elif result.prediction == 'Serious' %}🟡
+                                {% else %}🔴{% endif %}
+                                {{ result.prediction }}
+                            </div>
+                            {% if result.confidence is not none %}
+                            <div style="margin-top:10px; color:var(--text-secondary); font-size:13px;">Model Confidence: <span style="color:var(--text-primary); font-weight:800;">{{ result.confidence }}%</span></div>
+                            {% endif %}
+                        </div>
+
+                        {% if result.probabilities %}
+                        <div style="padding: 0 8px;">
+                            {% for label, prob in result.probabilities.items() %}
+                            <div class="prob-bar">
+                                <div class="prob-bar-label">
+                                    <span>{{ label }}</span>
+                                    <span>{{ prob }}%</span>
+                                </div>
+                                <div class="prob-bar-track">
+                                    <div class="prob-bar-fill {{ label|lower }}" style="width: {{ prob }}%;"></div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Risk & Physics -->
+                    <div class="card result-section animate-fade-in-up" style="margin-bottom:24px;">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">Risk Analysis</div>
+                                <div class="card-subtitle">Physics-based risk percentage & crash force</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-around; padding: 10px 0;">
+                            <div class="risk-circle {{ result.risk_level|lower }}">
+                                <div class="risk-score-val">{{ result.risk_score }}%</div>
+                                <div class="risk-level-label" style="text-transform: uppercase; font-weight: 800; font-size: 14px; margin-top: 4px; color: {% if result.risk_level == 'LOW' %}var(--accent-green){% elif result.risk_level == 'MODERATE' %}var(--accent-yellow){% else %}var(--accent-red){% endif %};">
+                                    {{ result.risk_level }}
+                                </div>
+                            </div>
+                            <div class="physics-stats">
+                                <div class="phys-item">
+                                    <div class="phys-label">EST. CRASH FORCE</div>
+                                    <div class="phys-value">{{ result.crash_force }} <small>kN</small></div>
+                                </div>
+                                <div class="phys-item" style="margin-top: 15px;">
+                                    <div class="phys-label">PROTECTION STATUS</div>
+                                    <div class="phys-value">{% if result.inputs.helmet_used == 'yes' or result.inputs.seatbelt_used == 'yes' %}ACTIVE{% else %}INACTIVE{% endif %}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Suggestions -->
+                    <div class="card result-section animate-fade-in-up delay-2">
+                        <div class="card-header" style="border-bottom: 1px solid var(--border); margin-bottom: 15px; padding-bottom: 10px;">
+                            <div class="card-title" style="color: var(--accent-cyan);">🛡️ Safety Recommendations</div>
+                        </div>
+                        <div class="card-subtitle" style="margin-bottom:10px;">Prevention (reduce crash likelihood)</div>
+                        <ul class="suggestions-list" style="list-style: none; padding: 0; margin-bottom: 18px;">
+                            {% for sug in result.suggestions.prevention %}
+                            <li style="margin-bottom: 12px; display: flex; gap: 12px; font-size: 14px; line-height: 1.4; color: var(--text-secondary);">
+                                <span style="color: var(--accent-yellow);">●</span> {{ sug }}
+                            </li>
+                            {% endfor %}
+                        </ul>
+
+                        <div class="card-subtitle" style="margin-bottom:10px;">Severity reduction (if a crash occurs)</div>
+                        <ul class="suggestions-list" style="list-style: none; padding: 0;">
+                            {% for sug in result.suggestions.mitigation %}
+                            <li style="margin-bottom: 12px; display: flex; gap: 12px; font-size: 14px; line-height: 1.4; color: var(--text-secondary);">
+                                <span style="color: var(--accent-green);">●</span> {{ sug }}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% else %}
+                    <!-- Empty State -->
+                    <div class="card" style="text-align:center; padding:80px 32px;">
+                        <div style="font-size:64px; margin-bottom:16px;">🔮</div>
+                        <div class="card-title" style="margin-bottom:8px;">Ready to Analyze</div>
+                        <p style="color:var(--text-muted); font-size:14px;">Fill in the accident parameters and click "Analyze Accident" to get predictions and risk assessment.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        setTimeout(() => {
+            document.querySelectorAll('.flash').forEach(el => {
+                el.style.opacity = '0'; setTimeout(() => el.remove(), 400);
+            });
+        }, 4000);
+
+        // Animate probability bars on load
+        setTimeout(() => {
+            document.querySelectorAll('.prob-bar-fill').forEach(bar => {
+                const width = bar.style.width;
+                bar.style.width = '0%';
+                setTimeout(() => { bar.style.width = width; }, 100);
+            });
+        }, 300);
+
+        // Match CLI behavior: helmet for bikes, seatbelt for car/bus/truck
+        function syncSafetyInputs() {
+            const vehicle = (document.getElementById('vehicle_type')?.value || 'car').toLowerCase();
+            const helmet = document.getElementById('helmet_used');
+            const seatbelt = document.getElementById('seatbelt_used');
+
+            const helmetGroup = helmet?.closest('.form-group');
+            const seatbeltGroup = seatbelt?.closest('.form-group');
+
+            const isBike = vehicle === 'bike';
+            if (helmetGroup) helmetGroup.style.display = isBike ? '' : 'none';
+            if (seatbeltGroup) seatbeltGroup.style.display = isBike ? 'none' : '';
+
+            // Keep hidden fields consistent with server defaults
+            if (!isBike && helmet) helmet.value = 'no';
+            if (isBike && seatbelt) seatbelt.value = 'no';
+        }
+
+        document.getElementById('vehicle_type')?.addEventListener('change', syncSafetyInputs);
+        syncSafetyInputs();
+    </script>
+</body>
+</html>

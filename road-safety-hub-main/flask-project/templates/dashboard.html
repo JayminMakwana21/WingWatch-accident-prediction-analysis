@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accident Analytics Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        /* ── Dashboard-specific overrides ── */
+        .dashboard-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 28px;
+        }
+        .dashboard-header h1 {
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        .dashboard-header .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            background: var(--bg-card);
+            padding: 8px 16px;
+            border-radius: 50px;
+            border: 1px solid var(--border);
+        }
+        .dashboard-header .user-badge span { font-size: 16px; }
+
+        /* ── Stat Cards ── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 28px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 22px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            animation: fadeInUp 0.5s ease-out forwards;
+            opacity: 0;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 0 0 var(--radius) var(--radius);
+        }
+        .stat-card.total::after { background: var(--accent-blue); }
+        .stat-card.fatal::after { background: var(--accent-red); }
+        .stat-card.serious::after { background: var(--accent-yellow); }
+        .stat-card.minor::after { background: var(--accent-green); }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-glow);
+        }
+        .stat-icon-box {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        .stat-icon-box.blue { background: rgba(59,130,246,0.15); }
+        .stat-icon-box.red { background: rgba(239,68,68,0.15); }
+        .stat-icon-box.yellow { background: rgba(245,158,11,0.15); }
+        .stat-icon-box.green { background: rgba(16,185,129,0.15); }
+        .stat-info .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+        .stat-info .stat-value {
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+        .stat-card.total .stat-value { color: var(--accent-blue); }
+        .stat-card.fatal .stat-value { color: var(--accent-red); }
+        .stat-card.serious .stat-value { color: var(--accent-yellow); }
+        .stat-card.minor .stat-value { color: var(--accent-green); }
+        .stat-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--bg-input);
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .stat-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 1.5s ease-out;
+        }
+
+        /* ── Charts Grid ── */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            animation: fadeInUp 0.6s ease-out forwards;
+            opacity: 0;
+            transition: var(--transition);
+        }
+        .chart-card:hover {
+            border-color: var(--border-light);
+            box-shadow: var(--shadow-glow);
+        }
+        .chart-card.full-width { grid-column: span 2; }
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .chart-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .chart-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        .chart-type-badge {
+            font-size: 10px;
+            padding: 4px 10px;
+            border-radius: 50px;
+            background: rgba(59,130,246,0.1);
+            color: var(--accent-blue);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .chart-container {
+            width: 100%;
+            height: 320px;
+            position: relative;
+        }
+        .chart-card.full-width .chart-container {
+            height: 380px;
+        }
+        .insight-box {
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: rgba(59,130,246,0.06);
+            border-left: 3px solid var(--accent-blue);
+            border-radius: 0 6px 6px 0;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+        .insight-box strong {
+            color: var(--accent-cyan);
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 1200px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 1024px) {
+            .charts-grid { grid-template-columns: 1fr; }
+            .chart-card.full-width { grid-column: span 1; }
+        }
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .dashboard-header { flex-direction: column; gap: 12px; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">
+            {% if category == 'success' %}✓{% elif category == 'error' %}✕{% else %}⚠{% endif %}
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">🚗 AccidentIQ</div>
+                <div class="sidebar-logo-sub">Analytics Platform</div>
+            </div>
+            <div class="sidebar-nav">
+                <a href="{{ url_for('dashboard') }}" class="nav-link active">
+                    <span class="nav-icon">📊</span> Dashboard
+                </a>
+                <a href="{{ url_for('dataset') }}" class="nav-link">
+                    <span class="nav-icon">📁</span> Dataset
+                </a>
+                <a href="{{ url_for('prediction') }}" class="nav-link">
+                    <span class="nav-icon">🔮</span> Prediction
+                </a>
+                <a href="{{ url_for('about') }}" class="nav-link">
+                    <span class="nav-icon">ℹ️</span> About
+                </a>
+            </div>
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="user-avatar">{{ username[0]|upper }}</div>
+                    <div class="user-info">
+                        <div class="user-name">{{ username }}</div>
+                        <div class="user-role">Analyst</div>
+                    </div>
+                </div>
+                <a href="{{ url_for('logout') }}" class="nav-link" style="color:var(--accent-red);">
+                    <span class="nav-icon">🚪</span> Logout
+                </a>
+            </div>
+        </nav>
+
+        <!-- Main -->
+        <main class="main-content">
+            <div class="dashboard-header">
+                <h1>Accident Analytics Dashboard</h1>
+                <div class="user-badge">
+                    <span>👤</span> {{ username }}
+                </div>
+            </div>
+
+            <!-- Stat Cards -->
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card total delay-1">
+                    <div class="stat-icon-box blue">🚗</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Total Accidents</div>
+                        <div class="stat-value" id="totalAccidents">—</div>
+                        <div class="stat-bar"><div class="stat-bar-fill" id="barTotal" style="width:0%;background:var(--accent-blue);"></div></div>
+                    </div>
+                </div>
+                <div class="stat-card fatal delay-2">
+                    <div class="stat-icon-box red">☠️</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Fatal Cases</div>
+                        <div class="stat-value" id="fatalCases">—</div>
+                        <div class="stat-bar"><div class="stat-bar-fill" id="barFatal" style="width:0%;background:var(--accent-red);"></div></div>
+                    </div>
+                </div>
+                <div class="stat-card serious delay-3">
+                    <div class="stat-icon-box yellow">⚠️</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Serious Cases</div>
+                        <div class="stat-value" id="seriousCases">—</div>
+                        <div class="stat-bar"><div class="stat-bar-fill" id="barSerious" style="width:0%;background:var(--accent-yellow);"></div></div>
+                    </div>
+                </div>
+                <div class="stat-card minor delay-4">
+                    <div class="stat-icon-box green">🛡️</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Minor Cases</div>
+                        <div class="stat-value" id="minorCases">—</div>
+                        <div class="stat-bar"><div class="stat-bar-fill" id="barMinor" style="width:0%;background:var(--accent-green);"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="charts-grid" id="chartsGrid">
+                <!-- Dynamically generated charts will appear here -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const chartData = {{ charts | safe }};
+
+        // ── Plotly Dark Theme Layout ──
+        const darkLayout = {
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#94a3b8', family: 'Inter, sans-serif', size: 12 },
+            margin: { t: 10, b: 45, l: 55, r: 20 },
+            xaxis: { gridcolor: '#1e293b', zerolinecolor: '#1e293b', tickfont: { size: 11 } },
+            yaxis: { gridcolor: '#1e293b', zerolinecolor: '#1e293b', tickfont: { size: 11 } },
+            legend: { orientation: 'h', y: -0.25, font: { size: 11 }, bgcolor: 'rgba(0,0,0,0)' },
+            hoverlabel: { bgcolor: '#1a2035', bordercolor: '#3b82f6', font: { color: '#f1f5f9', size: 13 } }
+        };
+        const config = { responsive: true, displayModeBar: false };
+
+        // Color palettes
+        const severityColors = { 'Minor': '#10b981', 'Serious': '#f59e0b', 'Fatal': '#ef4444' };
+        const barColors = ['#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+        const chartTypeBadges = {
+            'line': 'LINE', 'bar': 'BAR', 'donut': 'PIE', 'stacked_bar': 'STACKED',
+            'geo_map': 'GEO MAP', 'scatter_severity': 'SCATTER', 'histogram': 'HISTOGRAM',
+            'heatmap': 'HEATMAP', 'box': 'BOX PLOT', 'area': 'AREA', 'correlation': 'CORR MATRIX'
+        };
+
+        // ── Stat Cards ──
+        const total = chartData.total_records || 0;
+        const fatal = chartData.fatal_cases || 0;
+        const serious = chartData.serious_cases || 0;
+        const minor = chartData.minor_cases || 0;
+
+        function animateCounter(el, target) {
+            let current = 0;
+            const step = Math.max(1, Math.floor(target / 60));
+            const interval = setInterval(() => {
+                current += step;
+                if (current >= target) { current = target; clearInterval(interval); }
+                el.textContent = current.toLocaleString();
+            }, 20);
+        }
+
+        setTimeout(() => {
+            animateCounter(document.getElementById('totalAccidents'), total);
+            animateCounter(document.getElementById('fatalCases'), fatal);
+            animateCounter(document.getElementById('seriousCases'), serious);
+            animateCounter(document.getElementById('minorCases'), minor);
+
+            // Animate stat bars
+            setTimeout(() => {
+                document.getElementById('barTotal').style.width = '100%';
+                document.getElementById('barFatal').style.width = (total > 0 ? (fatal / total * 100) : 0) + '%';
+                document.getElementById('barSerious').style.width = (total > 0 ? (serious / total * 100) : 0) + '%';
+                document.getElementById('barMinor').style.width = (total > 0 ? (minor / total * 100) : 0) + '%';
+            }, 300);
+        }, 200);
+
+        // ── Chart Rendering ──
+        const chartsGrid = document.getElementById('chartsGrid');
+
+        if (chartData.charts && chartData.charts.length > 0) {
+            chartData.charts.forEach((chart, index) => {
+                const isFullWidth = ['geo_map', 'heatmap', 'correlation'].includes(chart.type);
+                const card = document.createElement('div');
+                card.className = `chart-card delay-${(index % 5) + 1} ${isFullWidth ? 'full-width' : ''}`;
+
+                card.innerHTML = `
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">${chart.title}</div>
+                            <div class="chart-subtitle">${chart.subtitle}</div>
+                        </div>
+                        <div class="chart-type-badge">${chartTypeBadges[chart.type] || chart.type.toUpperCase()}</div>
+                    </div>
+                    <div class="chart-container" id="${chart.id}"></div>
+                    <div class="insight-box">
+                        💡 <strong>Insight:</strong> ${chart.insight}
+                    </div>
+                `;
+                chartsGrid.appendChild(card);
+
+                // ── Render Charts ──
+                let layout = JSON.parse(JSON.stringify(darkLayout));
+
+                // 1. Line Chart
+                if (chart.type === 'line') {
+                    const trace = {
+                        x: chart.data.labels,
+                        y: chart.data.values,
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        line: { color: '#3b82f6', width: 3, shape: 'spline' },
+                        marker: { size: 8, color: '#06b6d4', line: { color: '#3b82f6', width: 2 } },
+                        fill: 'tozeroy',
+                        fillcolor: 'rgba(59,130,246,0.08)',
+                        hovertemplate: '%{x}: <b>%{y}</b> accidents<extra></extra>'
+                    };
+                    layout.xaxis.title = { text: 'Year', font: { size: 12 } };
+                    layout.yaxis.title = { text: 'Accident Count', font: { size: 12 } };
+                    Plotly.newPlot(chart.id, [trace], layout, config);
+                }
+
+                // 2. Bar Chart
+                else if (chart.type === 'bar') {
+                    const trace = {
+                        x: chart.data.labels,
+                        y: chart.data.values,
+                        type: 'bar',
+                        marker: {
+                            color: chart.data.labels.map((_, i) => barColors[i % barColors.length]),
+                            line: { color: 'rgba(255,255,255,0.1)', width: 1 }
+                        },
+                        hovertemplate: '%{x}: <b>%{y}</b><extra></extra>'
+                    };
+                    Plotly.newPlot(chart.id, [trace], layout, config);
+                }
+
+                // 3. Donut/Pie Chart
+                else if (chart.type === 'donut') {
+                    const trace = {
+                        labels: chart.data.labels,
+                        values: chart.data.values,
+                        type: 'pie',
+                        hole: 0.55,
+                        marker: {
+                            colors: chart.data.labels.map(l => severityColors[l] || barColors[chart.data.labels.indexOf(l) % barColors.length]),
+                            line: { color: '#0a0e1a', width: 3 }
+                        },
+                        textinfo: 'label+percent',
+                        textposition: 'outside',
+                        textfont: { size: 13, color: '#94a3b8' },
+                        hovertemplate: '%{label}: <b>%{value}</b> (%{percent})<extra></extra>'
+                    };
+                    layout.showlegend = true;
+                    layout.legend = { orientation: 'v', x: 1, y: 0.5, font: { size: 13, color: '#94a3b8' } };
+                    Plotly.newPlot(chart.id, [trace], layout, config);
+                }
+
+                // 4. Stacked Bar Chart
+                else if (chart.type === 'stacked_bar') {
+                    const traces = Object.entries(chart.data.datasets).map(([name, vals]) => ({
+                        x: chart.data.labels,
+                        y: vals,
+                        name: name,
+                        type: 'bar',
+                        marker: { color: severityColors[name] || '#3b82f6' },
+                        hovertemplate: `${name} - %{x}: <b>%{y}</b><extra></extra>`
+                    }));
+                    layout.barmode = 'stack';
+                    layout.xaxis.title = { text: 'Vehicle Type', font: { size: 12 } };
+                    layout.yaxis.title = { text: 'Count', font: { size: 12 } };
+                    Plotly.newPlot(chart.id, traces, layout, config);
+                }
+
+                // 5. State-wise Choropleth Map
+                else if (chart.type === 'geo_map') {
+                    const geoJsonUrl = 'https://raw.githubusercontent.com/geohacker/india/master/state/india_state.geojson';
+                    
+                    if (!window.indiaGeoJSON) {
+                        console.log('Fetching India GeoJSON from Geohacker...');
+                        fetch(geoJsonUrl)
+                            .then(response => {
+                                if (!response.ok) throw new Error('Network response was not ok: ' + response.statusText);
+                                return response.json();
+                            })
+                            .then(geojsonData => {
+                                console.log('India GeoJSON loaded successfully');
+                                window.indiaGeoJSON = geojsonData;
+                                renderChoropleth(chart);
+                            })
+                            .catch(err => {
+                                console.error('Error loading GeoJSON:', err);
+                                // Fallback to bubble map
+                                Plotly.newPlot(chart.id, [{
+                                    type: 'scattergeo',
+                                    lat: chart.data.lat,
+                                    lon: chart.data.lon,
+                                    text: chart.data.labels,
+                                    marker: {
+                                        size: chart.data.values.map(v => Math.sqrt(v) * 2),
+                                        color: chart.data.values,
+                                        colorscale: 'YlOrRd',
+                                        showscale: true
+                                    },
+                                    hovertemplate: '<b>%{text}</b><br>Accidents: %{marker.color}<extra></extra>'
+                                }], { ...layout, geo: { fitbounds: 'locations', visible: true } }, config);
+                            });
+                    } else {
+                        renderChoropleth(chart);
+                    }
+                }
+
+                // 6. Scatter Plot (Speed vs Severity)
+                else if (chart.type === 'scatter_severity') {
+                    const traces = Object.entries(chart.data).map(([sev, data]) => ({
+                        x: data.x,
+                        y: data.y,
+                        type: 'scatter',
+                        mode: 'markers',
+                        name: sev,
+                        marker: {
+                            size: 9,
+                            color: severityColors[sev],
+                            opacity: 0.7,
+                            line: { width: 1, color: 'rgba(255,255,255,0.2)' }
+                        },
+                        hovertemplate: `Speed: <b>%{x} km/h</b><br>Severity: ${sev}<extra></extra>`
+                    }));
+                    layout.xaxis.title = { text: 'Speed (km/h)', font: { size: 12 } };
+                    layout.yaxis.title = { text: 'Severity', font: { size: 12 } };
+                    Plotly.newPlot(chart.id, traces, layout, config);
+                }
+
+                // 7. Histogram
+                else if (chart.type === 'histogram') {
+                    const trace = {
+                        x: chart.data.labels,
+                        y: chart.data.values,
+                        type: 'bar',
+                        marker: {
+                            color: chart.data.values.map((v, i) => {
+                                const h = i;
+                                if (h >= 17 && h <= 21) return '#ef4444';
+                                if (h >= 6 && h <= 10) return '#f59e0b';
+                                if (h >= 0 && h <= 5) return '#3b82f6';
+                                return '#06b6d4';
+                            }),
+                            line: { color: 'rgba(255,255,255,0.1)', width: 1 }
+                        },
+                        hovertemplate: '%{x}: <b>%{y}</b> accidents<extra></extra>'
+                    };
+                    layout.xaxis.title = { text: 'Hour of Day', font: { size: 12 } };
+                    layout.yaxis.title = { text: 'Accident Count', font: { size: 12 } };
+                    layout.xaxis.tickangle = -45;
+                    Plotly.newPlot(chart.id, [trace], layout, config);
+                }
+
+                // 8. Heatmap
+                else if (chart.type === 'heatmap') {
+                    const trace = {
+                        x: chart.data.x,
+                        y: chart.data.y,
+                        z: chart.data.z,
+                        type: 'heatmap',
+                        colorscale: [
+                            [0, '#0a1628'],
+                            [0.25, '#1e3a5f'],
+                            [0.5, '#3b82f6'],
+                            [0.75, '#f59e0b'],
+                            [1, '#ef4444']
+                        ],
+                        showscale: true,
+                        colorbar: {
+                            title: { text: 'Count', font: { color: '#94a3b8' } },
+                            tickfont: { color: '#94a3b8' },
+                            bgcolor: 'rgba(0,0,0,0)'
+                        },
+                        hovertemplate: 'Year: %{y}<br>Month: %{x}<br>Count: <b>%{z}</b><extra></extra>'
+                    };
+                    layout.xaxis.tickangle = -45;
+                    layout.margin.b = 80;
+                    Plotly.newPlot(chart.id, [trace], layout, config);
+                }
+
+                // 9. Box Plot
+                else if (chart.type === 'box') {
+                    const traces = Object.entries(chart.data).map(([sev, vals]) => ({
+                        y: vals,
+                        name: sev,
+                        type: 'box',
+                        marker: { color: severityColors[sev], outliercolor: severityColors[sev] },
+                        line: { color: severityColors[sev] },
+                        fillcolor: severityColors[sev] + '30',
+                        hovertemplate: `${sev}<br>Value: <b>%{y:.1f}</b> kN<extra></extra>`
+                    }));
+                    layout.yaxis.title = { text: 'Crash Force (kN)', font: { size: 12 } };
+                    layout.showlegend = false;
+                    Plotly.newPlot(chart.id, traces, layout, config);
+                }
+
+                // 10. Cumulative Area Chart
+                else if (chart.type === 'area') {
+                    const lineStyles = { 'Minor': { color: '#10b981', dash: 'solid' }, 'Serious': { color: '#f59e0b', dash: 'dash' }, 'Fatal': { color: '#3b82f6', dash: 'solid' } };
+                    const traces = Object.entries(chart.data).map(([sev, data]) => {
+                        const style = lineStyles[sev] || { color: '#94a3b8', dash: 'solid' };
+                        return {
+                            x: data.x,
+                            y: data.y,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: sev,
+                            line: { color: style.color, width: 2.5, dash: style.dash, shape: 'spline' },
+                            fill: 'tozeroy',
+                            fillcolor: style.color + '12',
+                            hovertemplate: `${sev}<br>Speed: <b>%{x} km/h</b><br>Cumulative: <b>%{y}%</b><extra></extra>`
+                        };
+                    });
+                    layout.xaxis.title = { text: 'Speed (km/h)', font: { size: 12 } };
+                    layout.yaxis.title = { text: 'Cumulative %', font: { size: 12 } };
+                    layout.yaxis.range = [0, 105];
+                    layout.legend = { orientation: 'h', y: -0.25, font: { size: 12 }, bgcolor: 'rgba(0,0,0,0)' };
+                    Plotly.newPlot(chart.id, traces, layout, config);
+                }
+
+                // 11. Correlation Matrix
+                else if (chart.type === 'correlation') {
+                    const trace = {
+                        x: chart.data.labels,
+                        y: chart.data.labels,
+                        z: chart.data.z,
+                        text: chart.data.text,
+                        texttemplate: '%{text}',
+                        type: 'heatmap',
+                        colorscale: [
+                            [0, '#ef4444'],
+                            [0.25, '#f97316'],
+                            [0.5, '#1e293b'],
+                            [0.75, '#06b6d4'],
+                            [1, '#10b981']
+                        ],
+                        showscale: true,
+                        zmin: -1,
+                        zmax: 1,
+                        colorbar: {
+                            title: { text: 'r', font: { color: '#94a3b8' } },
+                            tickfont: { color: '#94a3b8' }
+                        },
+                        hovertemplate: '%{x} vs %{y}: <b>%{text}</b><extra></extra>'
+                    };
+                    layout.xaxis.tickangle = -45;
+                    layout.margin.b = 100;
+                    layout.margin.l = 120;
+                    Plotly.newPlot(chart.id, [trace], layout, config);
+                }
+            });
+
+            // Re-defined renderChoropleth outside the loop
+            function renderChoropleth(chartObj) {
+                const trace = {
+                    type: 'choropleth',
+                    geojson: window.indiaGeoJSON,
+                    locations: chartObj.data.labels,
+                    z: chartObj.data.values,
+                    featureidkey: 'properties.NAME_1',
+                    colorscale: [
+                        [0, '#0f172a'],
+                        [0.2, '#1e3a5f'],
+                        [0.4, '#3b82f6'],
+                        [0.6, '#f59e0b'],
+                        [0.8, '#f97316'],
+                        [1, '#ef4444']
+                    ],
+                    marker: { line: { color: '#0f172a', width: 0.5 } },
+                    colorbar: {
+                        title: { text: 'Accidents', font: { color: '#94a3b8', size: 10 } },
+                        tickfont: { color: '#94a3b8', size: 10 },
+                        thickness: 15
+                    },
+                    hovertemplate: '<b>%{location}</b><br>Accidents: <b>%{z}</b><extra></extra>'
+                };
+
+                const geoLayout = {
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    font: { color: '#94a3b8', family: 'Inter' },
+                    margin: { t: 0, b: 0, l: 0, r: 0 },
+                    geo: {
+                        fitbounds: 'locations',
+                        visible: true,
+                        bgcolor: 'rgba(0,0,0,0)',
+                        projection: { type: 'mercator' },
+                        showocean: true,
+                        oceancolor: 'rgba(15, 23, 42, 0.3)'
+                    }
+                };
+                Plotly.newPlot(chartObj.id, [trace], geoLayout, config);
+            }
+        } else {
+            chartsGrid.innerHTML = `
+                <div class="chart-card full-width" style="text-align: center; padding: 60px;">
+                    <div style="font-size: 64px; margin-bottom: 16px; opacity: 0.5;">📊</div>
+                    <div class="chart-title" style="font-size: 20px; margin-bottom: 8px;">No Chart Data Available</div>
+                    <div class="chart-subtitle" style="font-size: 14px;">Upload a dataset from the Dataset page to generate analytics.</div>
+                </div>
+            `;
+        }
+
+        // ── Animate cards ──
+        setTimeout(() => {
+            document.querySelectorAll('.stat-card').forEach(el => el.style.opacity = '1');
+            document.querySelectorAll('.chart-card').forEach(el => el.style.opacity = '1');
+        }, 100);
+
+        // ── Auto-hide flash messages ──
+        setTimeout(() => {
+            document.querySelectorAll('.flash').forEach(el => {
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 400);
+            });
+        }, 4000);
+    </script>
+</body>
+</html>

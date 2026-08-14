@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About — Accident Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">
+            {% if category == 'success' %}✓{% elif category == 'error' %}✕{% else %}⚠{% endif %}
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+    <div class="app-layout">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">🚗 AccidentIQ</div>
+                <div class="sidebar-logo-sub">Analytics Platform</div>
+            </div>
+            <div class="sidebar-nav">
+                <a href="{{ url_for('dashboard') }}" class="nav-link">
+                    <span class="nav-icon">📊</span> Dashboard
+                </a>
+                <a href="{{ url_for('dataset') }}" class="nav-link">
+                    <span class="nav-icon">📁</span> Dataset
+                </a>
+                <a href="{{ url_for('prediction') }}" class="nav-link">
+                    <span class="nav-icon">🔮</span> Prediction
+                </a>
+                <a href="{{ url_for('about') }}" class="nav-link active">
+                    <span class="nav-icon">ℹ️</span> About
+                </a>
+            </div>
+            <div class="sidebar-footer">
+                <a href="{{ url_for('logout') }}" class="nav-link" style="color:var(--accent-red);">
+                    <span class="nav-icon">🚪</span> Logout
+                </a>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">About</h1>
+                <p class="page-desc">Road Safety Hub — ML + physics-backed insights</p>
+            </div>
+
+            <div class="card animate-fade-in-up" style="margin-bottom:24px;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap;">
+                    <div style="min-width:280px; flex: 1;">
+                        <div style="font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-muted);">Platform</div>
+                        <div style="font-size:26px; font-weight:900; margin-top:6px; background: linear-gradient(to right, var(--accent-cyan), var(--accent-pink)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">SafeRoad Analytics</div>
+                        <p style="color: var(--text-secondary); margin-top: 10px; max-width: 720px;">A data-driven road safety system combining XGBoost severity prediction with a physics-based risk engine for explainable, real-world analysis.</p>
+                    </div>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <div class="card" style="padding:16px 18px; border:1px solid var(--border); background: rgba(59,130,246,0.08);">
+                            <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.12em;">Risk Engine</div>
+                            <div style="font-size:18px; font-weight:800; color:var(--accent-cyan);">Physics</div>
+                        </div>
+                        <div class="card" style="padding:16px 18px; border:1px solid var(--border); background: rgba(16,185,129,0.08);">
+                            <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.12em;">Severity Model</div>
+                            <div style="font-size:18px; font-weight:800; color:var(--accent-green);">XGBoost</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px;">
+                <div class="card animate-fade-in-up delay-1" style="border-top: 3px solid var(--accent-cyan);">
+                    <div style="font-size: 22px; margin-bottom: 10px;">🎯</div>
+                    <div class="card-title" style="color: var(--accent-cyan);">Mission</div>
+                    <div class="card-subtitle" style="margin-top:6px;">Preventable incidents through proactive analytics and risk scoring.</div>
+                </div>
+                <div class="card animate-fade-in-up delay-2" style="border-top: 3px solid var(--accent-pink);">
+                    <div style="font-size: 22px; margin-bottom: 10px;">💻</div>
+                    <div class="card-title" style="color: var(--accent-pink);">Technology</div>
+                    <div class="card-subtitle" style="margin-top:6px;">ML classification + physics impact modeling for interpretable results.</div>
+                </div>
+                <div class="card animate-fade-in-up delay-3" style="border-top: 3px solid var(--accent-yellow);">
+                    <div style="font-size: 22px; margin-bottom: 10px;">🌍</div>
+                    <div class="card-title" style="color: var(--accent-yellow);">Impact</div>
+                    <div class="card-subtitle" style="margin-top:6px;">Hotspot detection, prevention planning, and safer driving guidance.</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        setTimeout(() => {
+            document.querySelectorAll('.flash').forEach(el => {
+                el.style.opacity = '0'; setTimeout(() => el.remove(), 400);
+            });
+        }, 4000);
+    </script>
+</body>
+</html>
